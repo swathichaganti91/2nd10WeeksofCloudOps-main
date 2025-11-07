@@ -7,7 +7,7 @@ data "aws_vpc" "main" {
   id = "vpc-0f1709e0b20f4e9f5"  # Your VPC ID
 }
 
-# Data sources for subnets using your actual subnet IDs
+# FIXED: Data sources for subnets using IDs directly
 data "aws_subnet" "subnet-1" {
   id = "subnet-08714c1f168f130d7"  # Jumphost-subnet1
 }
