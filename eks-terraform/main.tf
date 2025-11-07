@@ -1,192 +1,212 @@
 provider "aws" {
-  region = "us-east-1"  # Specify your desired region
+  region = "us-east-1"
 }
 
- #Creating IAM role for EKS
-  resource "aws_iam_role" "master" {
-    name = "veera-master1"
-
-    assume_role_policy = jsonencode({
-      "Version": "2012-10-17",
-      "Statement": [
-        {
-          "Effect": "Allow",
-          "Principal": {
-            "Service": "eks.amazonaws.com"
-          },
-          "Action": "sts:AssumeRole"
-        }
-      ]
-    })
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonEKSClusterPolicy" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-    role       = aws_iam_role.master.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonEKSServicePolicy" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
-    role       = aws_iam_role.master.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
-    role       = aws_iam_role.master.name
-  }
-
-  resource "aws_iam_role" "worker" {
-    name = "veera-worker1"
-
-    assume_role_policy = jsonencode({
-      "Version": "2012-10-17",
-      "Statement": [
-        {
-          "Effect": "Allow",
-          "Principal": {
-            "Service": "ec2.amazonaws.com"
-          },
-          "Action": "sts:AssumeRole"
-        }
-      ]
-    })
-  }
-
-  resource "aws_iam_policy" "autoscaler" {
-    name = "vera-autoscaler-policy1"
-    policy = jsonencode({
-      "Version": "2012-10-17",
-      "Statement": [
-        {
-          "Action": [
-            "autoscaling:DescribeAutoScalingGroups",
-            "autoscaling:DescribeAutoScalingInstances",
-            "autoscaling:DescribeTags",
-            "autoscaling:DescribeLaunchConfigurations",
-            "autoscaling:SetDesiredCapacity",
-            "autoscaling:TerminateInstanceInAutoScalingGroup",
-            "ec2:DescribeLaunchTemplateVersions"
-          ],
-          "Effect": "Allow",
-          "Resource": "*"
-        }
-      ]
-    })
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonEKSWorkerNodePolicy" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-    role       = aws_iam_role.worker.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-    role       = aws_iam_role.worker.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonSSMManagedInstanceCore" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    role       = aws_iam_role.worker.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-    role       = aws_iam_role.worker.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "s3" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
-    role       = aws_iam_role.worker.name
-  }
-
-  resource "aws_iam_role_policy_attachment" "autoscaler" {
-    policy_arn = aws_iam_policy.autoscaler.arn
-    role       = aws_iam_role.worker.name
-  }
-
-  resource "aws_iam_instance_profile" "worker" {
-    depends_on = [aws_iam_role.worker]
-    name       = "veera-worker-new-profile1"
-    role       = aws_iam_role.worker.name
-  }
- 
- # data source 
- data "aws_vpc" "main" {
-  tags = {
-    Name = "Jumphost-vpc"  # Specify the name of your existing VPC
-  }
+# Data sources - using your actual VPC ID
+data "aws_vpc" "main" {
+  id = "vpc-0f1709e0b20f4e9f5"  # Your VPC ID
 }
 
+# Data sources for subnets using your actual subnet IDs
 data "aws_subnet" "subnet-1" {
- vpc_id = data.aws_vpc.main.id
- filter {
-    name = "tag:Name"
-    values = ["Jumphost-subnet1"]
- }
+  id = "subnet-08714c1f168f130d7"  # Jumphost-subnet1
 }
 
 data "aws_subnet" "subnet-2" {
- vpc_id = data.aws_vpc.main.id
- filter {
-    name = "tag:Name"
-    values = ["Jumphost-subnet2"]
- }
-}
-data "aws_security_group" "selected" {
-  vpc_id = data.aws_vpc.main.id
-  filter {
-    name = "tag:Name"
-    values = ["Jumphost-sg"]
- }
+  id = "subnet-0b708f133a4b58326"  # Jumphost-subnet2
 }
 
- #Creating EKS Cluster
-  resource "aws_eks_cluster" "eks" {
-    name     = "project-eks"
-    role_arn = aws_iam_role.master.arn
+# Creating IAM role for EKS
+resource "aws_iam_role" "master" {
+  name = "veera-master1"
 
-    vpc_config {
-      subnet_ids = [data.aws_subnet.subnet-1.id, data.aws_subnet.subnet-2.id]
-    }
-
-    tags = {
-      "Name" = "MyEKS"
-    }
-
-    depends_on = [
-      aws_iam_role_policy_attachment.AmazonEKSClusterPolicy,
-      aws_iam_role_policy_attachment.AmazonEKSServicePolicy,
-      aws_iam_role_policy_attachment.AmazonEKSVPCResourceController,
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Effect" : "Allow",
+        "Principal" : {
+          "Service" : "eks.amazonaws.com"
+        },
+        "Action" : "sts:AssumeRole"
+      }
     ]
-  }
- resource "aws_eks_node_group" "node-grp" {
-    cluster_name    = aws_eks_cluster.eks.name
-    node_group_name = "project-node-group"
-    node_role_arn   = aws_iam_role.worker.arn
-    subnet_ids      = [data.aws_subnet.subnet-1.id, data.aws_subnet.subnet-2.id]
-    capacity_type   = "ON_DEMAND"
-    disk_size       = 20
-    instance_types  = ["t3.micro"]
+  })
+}
 
-   
+resource "aws_iam_role_policy_attachment" "AmazonEKSClusterPolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.master.name
+}
 
-    labels = {
-      env = "dev"
-    }
+resource "aws_iam_role_policy_attachment" "AmazonEKSServicePolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+  role       = aws_iam_role.master.name
+}
 
-    scaling_config {
-      desired_size = 2
-      max_size     = 4
-      min_size     = 1
-    }
+resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+  role       = aws_iam_role.master.name
+}
 
-    update_config {
-      max_unavailable = 1
-    }
+resource "aws_iam_role" "worker" {
+  name = "veera-worker1"
 
-    depends_on = [
-      aws_iam_role_policy_attachment.AmazonEKSWorkerNodePolicy,
-      aws_iam_role_policy_attachment.AmazonEKS_CNI_Policy,
-      aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Effect" : "Allow",
+        "Principal" : {
+          "Service" : "ec2.amazonaws.com"
+        },
+        "Action" : "sts:AssumeRole"
+      }
     ]
+  })
+}
+
+resource "aws_iam_policy" "autoscaler" {
+  name = "vera-autoscaler-policy1"
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Action" : [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeTags",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup",
+          "ec2:DescribeLaunchTemplateVersions"
+        ],
+        "Effect" : "Allow",
+        "Resource" : "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "AmazonEKSWorkerNodePolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "AmazonSSMManagedInstanceCore" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "s3" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "autoscaler" {
+  policy_arn = aws_iam_policy.autoscaler.arn
+  role       = aws_iam_role.worker.name
+}
+
+resource "aws_iam_instance_profile" "worker" {
+  depends_on = [aws_iam_role.worker]
+  name       = "veera-worker-new-profile1"
+  role       = aws_iam_role.worker.name
+}
+
+# Create security group for EKS cluster
+resource "aws_security_group" "eks_cluster" {
+  name_prefix = "eks-cluster-"
+  vpc_id      = data.aws_vpc.main.id
+  description = "Security group for EKS cluster"
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
+
+  ingress {
+    description = "Internal cluster communication"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.main.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "eks-cluster-sg"
+  }
+}
+
+# Creating EKS Cluster
+resource "aws_eks_cluster" "eks" {
+  name     = "project-eks"
+  role_arn = aws_iam_role.master.arn
+
+  vpc_config {
+    subnet_ids              = [data.aws_subnet.subnet-1.id, data.aws_subnet.subnet-2.id]
+    security_group_ids      = [aws_security_group.eks_cluster.id]
+    endpoint_private_access = true
+    endpoint_public_access  = true
+  }
+
+  tags = {
+    "Name" = "MyEKS"
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.AmazonEKSClusterPolicy,
+    aws_iam_role_policy_attachment.AmazonEKSServicePolicy,
+    aws_iam_role_policy_attachment.AmazonEKSVPCResourceController,
+  ]
+}
+
+resource "aws_eks_node_group" "node-grp" {
+  cluster_name    = aws_eks_cluster.eks.name
+  node_group_name = "project-node-group"
+  node_role_arn   = aws_iam_role.worker.arn
+  subnet_ids      = [data.aws_subnet.subnet-1.id, data.aws_subnet.subnet-2.id]
+  capacity_type   = "ON_DEMAND"
+  disk_size       = 20
+  instance_types  = ["t3.micro"]
+
+  labels = {
+    env = "dev"
+  }
+
+  scaling_config {
+    desired_size = 2
+    max_size     = 4
+    min_size     = 1
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.AmazonEKSWorkerNodePolicy,
+    aws_iam_role_policy_attachment.AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
+  ]
+}
