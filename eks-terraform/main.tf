@@ -4,16 +4,16 @@ provider "aws" {
 
 # Data sources - using your actual VPC ID
 data "aws_vpc" "main" {
-  id = "vpc-0effc10ca6a6d18cf"  # Your VPC ID
+  id = "vpc-00251b9ec7e65e7a4"  # Your VPC ID
 }
 
 # FIXED: Data sources for subnets using IDs directly
 data "aws_subnet" "subnet-1" {
-  id = "subnet-06350a0ace532c7b7"  # Jumphost-subnet1
+  id = "subnet-0109c4da167b2910b"  # Jumphost-subnet1
 }
 
 data "aws_subnet" "subnet-2" {
-  id = "subnet-0f936cb2159cb0519"  # Jumphost-subnet2
+  id = "subnet-0c458cc02458dd784"  # Jumphost-subnet2
 }
 
 # Creating IAM role for EKS
